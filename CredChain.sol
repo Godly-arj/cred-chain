@@ -100,9 +100,9 @@ contract CredChain is ERC721URIStorage, Ownable {
     }
 
     // Convenience getters
-    function getProject(address user, uint index) external view returns (string memory, string memory, bool) {
+    function getProject(address user, uint index) external view returns (address,string memory, string memory, bool) {
         Project storage p = userProjects[user][index];
-        return (p.projectHash, p.link, p.verified);
+        return (p.client,p.projectHash, p.link, p.verified);
     }
 
     function getProjectCount(address user) external view returns (uint) {

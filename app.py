@@ -24,13 +24,13 @@ def home():
     return render_template('index.html')
 
 def deploysmartcontract():                                  #deployment function call
-    '''contractaddress,abi=depoly_contract() '''              
+    '''contractaddress,abi=depoly_contract()'''              
     global contract
 
     with open("./compiledcccode.json","r") as file:
         compiledsol = json.load(file) 
     abi=compiledsol["contracts"]["chaincred.sol"]["CredChain"]["abi"]
-    contract=w3.eth.contract(address="0xc57D3E68b3Ea6C0b7C9E2118EC1F9C1EA988b1A5", abi=abi)
+    contract=w3.eth.contract(address="0x8c1Ba02d545805aAaE3Fd7Cd33F5312349491186", abi=abi)
     
     '''global contract
     contract='0x7B87314c1975ba20ff93b931f3aEA7779098fA13'   '''
