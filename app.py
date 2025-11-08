@@ -129,7 +129,7 @@ def submit_project():
 
     # Call addProject
     try:
-        feature = contract.functions.addProject(MYADDRESS, h, link)
+        feature = contract.functions.addProject(Web3.to_checksum_address(wallet), h, link)
         receipt = callfeature(feature)
         print("Github user verification: ",receipt)
     except Exception as e:
@@ -137,13 +137,62 @@ def submit_project():
 
     # Determine index (getProjectCount returns number of projects)
     try:
-        count = contract.functions.getProjectCount(Web3.toChecksumAddress(wallet)).call()
+        count = contract.functions.getProjectCount(Web3.to_checksum_address(wallet)).call()
         index = count - 1
     except Exception:
         index = None
 
     PENDING_PROJECTS.append({"user": wallet, "link": link, "hash": h, "index": index})
     return jsonify({"status":"added", "tx": receipt.transactionHash.hex(), "index": index})
+
+
+@app.route("/run_verify_pending", methods=["POST"])
+def run_verify_pending():
+    print("Current pending projects:", PENDING_PROJECTS)
+
+    # Admin endpoint to verify pending projects (can be scheduled)
+    results = []
+    to_remove = []
+    for i, p in enumerate(list(PENDING_PROJECTS)):
+        try:
+            r = requests.get(p["link"], timeout=12)
+            if r.status_code == 200:
+                new_hash = hashlib.sha256(r.content).hexdigest()
+                print("Rechecking project:", p["link"])
+                print("Stored hash:", p["hash"])
+                print("Fetched new hash:", new_hash)
+                print("Match:", new_hash == p["hash"])
+                verified = (new_hash == p["hash"])
+                if verified:
+                    fn = contract.functions.verifyProject(Web3.to_checksum_address(p["user"]), p["index"], True)
+                    receipt = callfeature(fn)
+                    results.append({"user": p["user"], "index": p["index"], "verified": True, "tx": receipt.transactionHash.hex()})
+                    to_remove.append(i)
+                else:
+                    results.append({"user": p["user"], "index": p["index"], "verified": False})
+            else:
+                results.append({"user": p["user"], "index": p["index"], "error": "link unreachable"})
+        except Exception as e:
+            results.append({"user": p["user"], "index": p["index"], "error": str(e)})
+
+    for idx in sorted(to_remove, reverse=True):
+        PENDING_PROJECTS.pop(idx)
+    return jsonify({"results": results})
+
+@app.route("/mint_manual", methods=["POST"])
+def mint_manual():
+    # Admin manual badge mint
+    data = request.get_json()
+    wallet = data.get("wallet")
+    uri = data.get("uri")
+    if not wallet or not uri:
+        return jsonify({"error":"wallet and uri required"}), 400
+    try:
+        fn = contract.functions.mintBadge(Web3.to_checksum_address(wallet), uri)
+        receipt = callfeature(fn)
+        return jsonify({"tx": receipt.transactionHash.hex()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__=="__main__":

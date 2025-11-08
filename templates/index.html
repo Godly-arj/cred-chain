@@ -9,16 +9,30 @@
   <button id="connect">Connect MetaMask</button>
   <div id="addr"></div>
 
+  <hr>
   <h3>Verify Identity (GitHub/LinkedIn)</h3>
   <input id="profile" placeholder="https://github.com/username"/>
   <button id="verify">Verify</button>
 
+  <hr>
   <h3>Submit Project</h3>
   <input id="proj" placeholder="https://raw.githubusercontent.com/..."/>
   <button id="submit">Submit Project</button>
 
+  <hr>
+  <h3>Admin: Run Pending Verifications</h3>
+  <button id="runPending">Run Verify Pending</button>
+
+  <hr>
+  <h3>Admin: Manual Badge Mint</h3>
+  <input id="mintWallet" placeholder="0xUserWalletAddress"/>
+  <input id="mintURI" placeholder="ipfs://BadgeURI"/>
+  <button id="mintManual">Mint Badge</button>
+
 <script>
 let account;
+
+// -------- Connect MetaMask --------
 document.getElementById('connect').onclick = async () => {
   if (window.ethereum) {
     const accs = await ethereum.request({ method: 'eth_requestAccounts' });
@@ -29,6 +43,7 @@ document.getElementById('connect').onclick = async () => {
   }
 };
 
+// -------- Verify User --------
 document.getElementById('verify').onclick = async () => {
   if (!account) return alert('Connect first');
   const profile = document.getElementById('profile').value;
@@ -38,9 +53,10 @@ document.getElementById('verify').onclick = async () => {
     body: JSON.stringify({wallet: account, profile_link: profile})
   });
   const data = await res.json();
-  alert(JSON.stringify(data));
+  alert(JSON.stringify(data, null, 2));
 };
 
+// -------- Submit Project --------
 document.getElementById('submit').onclick = async () => {
   if (!account) return alert('Connect first');
   const link = document.getElementById('proj').value;
@@ -50,7 +66,30 @@ document.getElementById('submit').onclick = async () => {
     body: JSON.stringify({wallet: account, link})
   });
   const data = await res.json();
-  alert(JSON.stringify(data));
+  alert(JSON.stringify(data, null, 2));
+};
+
+// -------- Run Verify Pending (Admin only) --------
+document.getElementById('runPending').onclick = async () => {
+  const res = await fetch('http://localhost:5000/run_verify_pending', {
+    method:'POST',
+    headers: {'Content-Type':'application/json'}
+  });
+  const data = await res.json();
+  alert('Verification Results:\n' + JSON.stringify(data, null, 2));
+};
+
+// -------- Mint Badge Manually (Admin only) --------
+document.getElementById('mintManual').onclick = async () => {
+  const wallet = document.getElementById('mintWallet').value;
+  const uri = document.getElementById('mintURI').value;
+  const res = await fetch('http://localhost:5000/mint_manual', {
+    method:'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({wallet, uri})
+  });
+  const data = await res.json();
+  alert('Mint result:\n' + JSON.stringify(data, null, 2));
 };
 </script>
 </body>
