@@ -35,8 +35,19 @@ def deploysmartcontract():                                  #deployment function
     '''global contract
     contract='0x7B87314c1975ba20ff93b931f3aEA7779098fA13'   '''
 
-# In-memory pending list for demo
-PENDING_PROJECTS = []  # {user, link, hash, index}
+PENDING_FILE = "pending.json"
+def load_pending():
+    global PENDING_PROJECTS
+    if os.path.exists(PENDING_FILE):
+        with open(PENDING_FILE, "r") as f:
+            PENDING_PROJECTS = json.load(f)
+    else:
+        PENDING_PROJECTS = []
+
+def save_pending():
+    with open(PENDING_FILE, "w") as f:
+        json.dump(PENDING_PROJECTS, f, indent=2)
+
 
 #-----------------------------------------------------------CALL FUNCTIONS-----------------------------------------------------------
 def callfeature(feature):
@@ -101,12 +112,12 @@ def verify_user():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-#-----------------------------------------------------------VERIFY PROJECT-----------------------------------------------------------
+#-----------------------------------------------------------ADD PROJECT-----------------------------------------------------------
 @app.route("/submit_project", methods=["POST"])
 def submit_project():
     """
     JSON:
-    { "wallet":"0x..", "link":"https://raw.githubusercontent.com/.. or https://github.com/.. "}
+    { "wallet":"0x..", "link":"https://raw.githubusercontent.com/.. or https://github.com/.. " }
     """
     data = request.get_json()
     wallet = data.get("wallet")
@@ -114,6 +125,10 @@ def submit_project():
     deploysmartcontract()
     if not wallet or not link:
         return jsonify({"error":"wallet and link required"}), 400
+
+    # Normalize GitHub link
+    if "github.com" in link and "raw.githubusercontent.com" not in link:
+        link = link.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
 
     # Fetch content (for repo, fetching raw or zip is tricky; simple GET for demo)
     try:
@@ -131,7 +146,7 @@ def submit_project():
     try:
         feature = contract.functions.addProject(Web3.to_checksum_address(wallet), h, link)
         receipt = callfeature(feature)
-        print("Github user verification: ",receipt)
+        print("Github user verification: ", receipt)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -142,15 +157,19 @@ def submit_project():
     except Exception:
         index = None
 
+    load_pending()  # Load existing pending projects
     PENDING_PROJECTS.append({"user": wallet, "link": link, "hash": h, "index": index})
-    return jsonify({"status":"added", "tx": receipt.transactionHash.hex(), "index": index})
+    save_pending()  # Save updated pending list
+
+    return jsonify({"status": "added", "tx": receipt.transactionHash.hex(), "index": index})
 
 
+#-----------------------------------------------------------VERIFY PROJECT-----------------------------------------------------------
 @app.route("/run_verify_pending", methods=["POST"])
 def run_verify_pending():
+    load_pending()  # Load current pending list
     print("Current pending projects:", PENDING_PROJECTS)
 
-    # Admin endpoint to verify pending projects (can be scheduled)
     results = []
     to_remove = []
     for i, p in enumerate(list(PENDING_PROJECTS)):
@@ -166,7 +185,12 @@ def run_verify_pending():
                 if verified:
                     fn = contract.functions.verifyProject(Web3.to_checksum_address(p["user"]), p["index"], True)
                     receipt = callfeature(fn)
-                    results.append({"user": p["user"], "index": p["index"], "verified": True, "tx": receipt.transactionHash.hex()})
+                    results.append({
+                        "user": p["user"],
+                        "index": p["index"],
+                        "verified": True,
+                        "tx": receipt.transactionHash.hex()
+                    })
                     to_remove.append(i)
                 else:
                     results.append({"user": p["user"], "index": p["index"], "verified": False})
@@ -177,8 +201,13 @@ def run_verify_pending():
 
     for idx in sorted(to_remove, reverse=True):
         PENDING_PROJECTS.pop(idx)
+
+    save_pending()  # Save updated list after verification
+
     return jsonify({"results": results})
 
+
+#-----------------------------------------------------------MINT BADGES-----------------------------------------------------------
 @app.route("/mint_manual", methods=["POST"])
 def mint_manual():
     # Admin manual badge mint
