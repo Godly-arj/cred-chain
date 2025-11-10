@@ -1,42 +1,43 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "./node_modules/@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "./node_modules/@openzeppelin/contracts/access/Ownable.sol";
 
 
 contract CredChain is ERC721URIStorage, Ownable {
     struct Project {
         address client;
         string projectHash; // SHA-256 hex
-        string link;        // IPFS/GitHub link
+        string link;
+        // IPFS/GitHub link
         bool verified;
     }
 
     struct Review {
         address reviewer;
+        uint projectIndex;  // link to userProjects[user][index]
         uint8 rating;
-        string commentHash; // could be IPFS
+        string commentHash;
     }
 
-    mapping(string => bool) private _verifiedProjects;// Tracks if a project (by its projectHash) has been verified.
-    mapping(address => mapping(string => bool)) private _hasReviewed;    // Tracks if a (reviewer, projectHash) pair has already submitted a review.
-
+    // --- Mappings ---
     mapping(address => bool) public verifiedUsers;
     mapping(address => Project[]) public userProjects;
     mapping(address => Review[]) public userReviews;
     mapping(address => uint256) public projectCount; // verified project counts
+    mapping(string => bool) private _projectHashExists;// to prevent duplicate additions.
 
     uint256 public tokenCounter;
 
     event UserVerified(address indexed user, bool status);
     event ProjectAdded(address indexed user, uint index, string projectHash, string link);
-    event ProjectVerified(address indexed user, uint index, string projectHash); 
+    event ProjectVerified(address indexed user, uint index, bool status);
     event ReviewAdded(address indexed freelancer, address indexed reviewer, uint8 rating);
 
-  constructor() ERC721("CredChainBadge", "CCB") Ownable(msg.sender) {
+  constructor() ERC721("CredChainBadge", "CCB") Ownable() {
     tokenCounter = 1;
-    }
+  }
 
     // Admin/back-end calls to set a user as verified (after off-chain verification)
     function setUserVerified(address user, bool status) external onlyOwner {
@@ -46,55 +47,85 @@ contract CredChain is ERC721URIStorage, Ownable {
 
     // Add project (backend should call this after computing hash)
     function addProject(address user, address client,string calldata projectHash, string calldata link) external onlyOwner {
-    require(verifiedUsers[user], "User not verified");
-    userProjects[user].push(Project(client, projectHash, link, false));
-    emit ProjectAdded(user, userProjects[user].length - 1, projectHash, link);
-}
+        require(verifiedUsers[user], "User not verified");
+        
+        // Prevent duplicate project hash from being added
+        require(!_projectHashExists[projectHash], "Project hash already exists");
+        
+        // Mark hash as existing
+        _projectHashExists[projectHash] = true;
 
+        userProjects[user].push(Project(client, projectHash, link, false));
+        emit ProjectAdded(user, userProjects[user].length - 1, projectHash, link);
+    }
 
     // Backend (verifier) sets project verified flag
     function verifyProject(address user, uint index, bool status) external onlyOwner {
         require(index < userProjects[user].length, "Invalid index");
-        
         Project storage p = userProjects[user][index];
-        
-        // --- Duplicate Check: Project Verification ---
-        require(!_verifiedProjects[p.projectHash], "Project already verified");
 
-        p.verified = status;
-        
         if (status) {
-            // Mark project hash as verified universally
-            _verifiedProjects[p.projectHash] = true; 
-            
+            // We only increment count if the project isn't already verified
+            // This prevents counting the same project if this function is called twice
+            require(p.verified == false, "Project already marked as verified");
+
             projectCount[user] += 1;
             _checkAndMintBadge(user);
         }
-        // NOTE: If we allow 'status=false' calls, we should decide if it should clear _verifiedProjects
-        // For simplicity and preventing double-counting, we only set 'true' and don't allow un-verification.
+        // Note: You may want to add logic for 'status == false'
+        // to *decrease* projectCount[user] if it was already verified.
         
-        emit ProjectVerified(user, index, p.projectHash);
+        p.verified = status;
+
+        emit ProjectVerified(user, index, status);
     }
 
     // Clients (verified) submit reviews; reviewer must be verified user
-    function submitReview(address freelancer, string calldata projectHash, uint8 rating, string calldata commentHash) external {
-        // We now require the projectHash to check verification and duplicate reviews
+    function submitReview(address freelancer,uint projectIndex,uint8 rating,string calldata commentHash) external {
         require(verifiedUsers[msg.sender], "Reviewer not verified");
-        
-        // --- Duplicate Check: Project Verification ---
-        require(_verifiedProjects[projectHash], "Project not verified");
-        
-        // --- Duplicate Check: Reviewer already reviewed this project ---
-        require(!_hasReviewed[msg.sender][projectHash], "Reviewer already reviewed this project");
+        require(projectIndex < userProjects[freelancer].length, "Invalid project index");
 
-        // Record the review
-        userReviews[freelancer].push(Review(msg.sender, rating, commentHash));
-        
-        // Mark the (reviewer, projectHash) pair as reviewed
-        _hasReviewed[msg.sender][projectHash] = true;
-        
+        Project storage p = userProjects[freelancer][projectIndex];
+        require(p.client == msg.sender, "Not authorized to review this project");
+
+        userReviews[freelancer].push(
+            Review(msg.sender, projectIndex, rating, commentHash)
+        );
+
         emit ReviewAdded(freelancer, msg.sender, rating);
     }
+
+    // To get a specific project and all its associated reviews
+    function getProjectWithReviews(address user, uint index)external view returns (
+            address client,
+            string memory projectHash,
+            string memory link,
+            bool verified,
+            Review[] memory reviews
+        )
+    {
+        Project storage p = userProjects[user][index];
+
+        // To count how many reviews correspond to this project
+        uint count = 0;
+        for (uint i = 0; i < userReviews[user].length; i++) {
+            if (userReviews[user][i].projectIndex == index) {
+                count++;
+            }
+        }
+
+        Review[] memory matched = new Review[](count);
+        uint j = 0;
+        for (uint i = 0; i < userReviews[user].length; i++) {
+            if (userReviews[user][i].projectIndex == index) {
+                matched[j] = userReviews[user][i];
+                j++;
+            }
+        }
+
+        return (p.client, p.projectHash, p.link, p.verified, matched);
+    }
+
 
     // Internal badge logic — auto-mint on milestones
     function _checkAndMintBadge(address user) internal {
@@ -120,7 +151,7 @@ contract CredChain is ERC721URIStorage, Ownable {
 
     // Configure URIs for milestones (dev: replace IPFS with real URIs)
     function _getBadgeURI(uint256 milestone) internal pure returns (string memory) {
-        if (milestone == 3) return "ipfs://bafybeia7z2tn7uk7dsimsp3mfgnmrveocbirll7msiczyf6k2kbod7zpoa"; //Tried adding the IPFS link here !!!
+        if (milestone == 3) return "ipfs://QmBadge3";
         if (milestone == 5) return "ipfs://QmBadge5";
         if (milestone == 7) return "ipfs://QmBadge7";
         if (milestone == 10) return "ipfs://QmBadge10";
@@ -137,7 +168,7 @@ contract CredChain is ERC721URIStorage, Ownable {
         return userProjects[user].length;
     }
 
-    function getVerifiedProjectCount(address user) external view returns (uint) {
+    function getVerifiedProjectTCount(address user) external view returns (uint) {
         return projectCount[user];
     }
 }
