@@ -6,7 +6,7 @@ let web3;
 let contract;
 let account;
 
-const CONTRACT_ADDRESS = "0x644268573996Ae7c93852C140C722C0306004387";
+const CONTRACT_ADDRESS = "0xE418eEF83E3226901c15e605774aE7A83b772377";
 const COMPILED_JSON_PATH = "./static/compiledcccode.json"; // serve this from your static folder
 
 // ---- helper: load ABI from compiled JSON ----
@@ -104,6 +104,9 @@ export async function connectWallet() {
     return account;
 }
 
+
+
+
 // ---- transaction sender with gas estimation and try/catch ----
 async function sendTx(txObject) {
     if (!account) throw new Error("account not set; call connectWallet() first");
@@ -128,8 +131,12 @@ async function sendTx(txObject) {
 // ---- contract calls ----
 export async function verifyUserOnChain() {
     if (!contract || !account) await connectWallet();
-    return sendTx(contract.methods.setUserVerified(account, true));
+    const tx = await sendTx(contract.methods.setUserVerified(account, true));
+
+    return { wallet: account, tx };
 }
+
+
 
 // IMPORTANT: when your Solidity function takes a struct `ProjectInput calldata p`
 // web3 expects an object with the struct fields in correct name/order.

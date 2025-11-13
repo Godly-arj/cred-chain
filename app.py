@@ -22,11 +22,11 @@ CORS(app)
 app.register_blueprint(routes) 
 
 
-@app.route('/')
+'''@app.route('/')
 def home():
-    return render_template('home.html')
+    return render_template('home.html')'''
 
-@app.route('/user')
+@app.route('/')
 def user():
     return render_template('index.html')
 
@@ -115,7 +115,7 @@ def getsmartcontract():                                  #deployment function ca
 #-----------------------------------------------------------CALL FUNCTIONS-----------------------------------------------------------
 def callfeature(feature):
     print("Function Call Recieved!!")
-    balance = w3.eth.get_balance(wallet)
+    balance = w3.eth.get_balance("wallet")
     print("Balance:", w3.from_wei(balance, "ether"), "DEV")
 
     
@@ -142,54 +142,41 @@ def owner_account():
     return w3.eth.account.from_key(SECRETCODE)
 
 #-----------------------------------------------------------VERIFY USER-----------------------------------------------------------
-@app.route("/verify_user", methods=["POST"])
-def verify_user():
-    print("User Verification Function Triggered")
+@app.route("/verify_freelancer", methods=["POST"])
+def verify_freelancer():
+    data = request.get_json() or {}
 
-    '''deploysmartcontract()'''
-    getsmartcontract()
-
-    """
-    Request JSON:
-    { "wallet": "0x..", "profile_link": "https://github.com/..." }
-    """
-    data = request.get_json()
-    global wallet
     wallet = data.get("wallet")
     print(wallet)
     link = data.get("profile_link")
-    print(link)
 
-    
+    if not wallet:
+        return jsonify({"valid": False, "reason": "Wallet missing"}), 400
 
-    if not wallet or not link:
-        return jsonify({"error": "wallet and profile_link required"}), 400
+    if not link:
+        return jsonify({"valid": False, "reason": "Profile link missing"}), 400
 
-    # Quick validation: link reachable (simple MVP)
+    if "github.com" not in link:
+        return jsonify({"valid": False, "reason": "Not a GitHub link"}), 400
+
     try:
         r = requests.get(link, timeout=10, headers={"User-Agent": "CredChainVerifier/1.0"})
         if r.status_code != 200:
-            return jsonify({"verified": False, "reason": "profile link unreachable"}), 400
+            return jsonify({"valid": False, "reason": "GitHub page not found"}), 400
+
     except Exception as e:
-        return jsonify({"verified": False, "reason": str(e)}), 400
+        return jsonify({"valid": False, "reason": f"Request failed: {str(e)}"}), 400
 
-    # mark verified on-chain
-    try:
-        setverified = contract.functions.setUserVerified(Web3.to_checksum_address(wallet), True)
-        receipt = callfeature(setverified)
+    # Save GitHub link
+    load_profiles()
+    w = wallet.lower()
+    if w not in PROFILES:
+        PROFILES[w] = {}
+    PROFILES[w]["github"] = link
+    save_profiles()
 
-         # Automatically store verified GitHub into user profile
-        load_profiles()
-        w = wallet.lower()
-        if w not in PROFILES:
-            PROFILES[w] = {}
-        PROFILES[w]["github"] = link  # auto-save GitHub profile
-        save_profiles()
+    return jsonify({"valid": True})
 
-        print("Github user verification: ",receipt)
-        return jsonify({"verified": True, "tx": receipt.transactionHash.hex()})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 #-----------------------------------------------------------ADD PROJECT-----------------------------------------------------------
 @app.route("/submit_project", methods=["POST"])

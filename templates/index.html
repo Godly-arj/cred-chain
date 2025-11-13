@@ -64,15 +64,53 @@
 <script>
 let account;
 
+//CONNECT WALLET - WORKING
 document.getElementById("connect").onclick = async () => {
     try {
         const addr = await window.connectWallet();
+        account = addr;   // ✅ FIX — store wallet for later use
         document.getElementById("addr").innerText = "Connected: " + addr;
     } catch (e) {
         console.error("connect error:", e);
         alert("Connection failed: " + e.message);
     }
 };
+
+// VERIFY USER 
+document.getElementById("verify").onclick = async () => {
+    const link = document.getElementById("profileLink").value;
+
+    // 1️⃣ First, backend validates the GitHub link
+    const backendRes = await fetch("http://localhost:5000/verify_freelancer", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            wallet: account,  
+            profile_link: link
+        })
+    });
+
+    const backendData = await backendRes.json();
+
+    if (!backendData.valid) {
+        alert("GitHub validation failed: " + backendData.reason);
+        return;
+    }
+
+    // 2️⃣ Now call the blockchain verification
+    const { wallet, tx } = await window.verifyUserOnChain();
+
+    // 3️⃣ IMPORTANT: use wallet returned from verifyUserOnChain()
+    console.log("Verified wallet:", wallet);
+
+    // 4️⃣ OPTIONAL: Notify backend that blockchain part passed
+
+
+    alert(
+    "Verified On Chain!\nWallet: " + wallet + "\nTx: " + tx.transactionHash
+);
+};
+
 
 // LOAD PROFILE + PROJECTS
 async function loadProfile() {
@@ -142,21 +180,8 @@ document.getElementById("saveProfile").onclick = async () => {
     loadProfile();
 };
 
-// VERIFY USER
-document.getElementById("verify").onclick = async () => {
-    const link = document.getElementById("profileLink").value;
 
-    // backend validates GitHub link
-    await fetch("http://localhost:5000/verify_user", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({wallet: account, profile_link: link})
-    });
 
-    // blockchain verification
-    const tx = await verifyUserOnChain();
-    alert("Verified On Chain: " + tx.transactionHash);
-};
 
 // SUBMIT PROJECT
 document.getElementById("submit").onclick = async () => {

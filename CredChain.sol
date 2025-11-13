@@ -55,12 +55,12 @@ contract CredChain is ERC721URIStorage, Ownable {
     // ------------------------------------------------------------
     // User verification
     // ------------------------------------------------------------
-    function setUserVerified(address user, bool status) external onlyOwner {
+    function setUserVerified(address user, bool status) external  {
         verifiedUsers[user] = status;
         emit UserVerified(user, status);
     }
 
-    function addProject(ProjectInput calldata p) external onlyOwner {
+    function addProject(ProjectInput calldata p) external  {
         require(verifiedUsers[p.user], "User not verified");
         require(!_projectHashExists[p.projectHash], "Project exists");
 
