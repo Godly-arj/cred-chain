@@ -359,12 +359,13 @@ def get_project_with_reviews():
 
     try:
         # Fetch full project details with all fields
-        result = contract.functions.getProjectWithReviews(
+        result = contract.functions.getProjectReviews(
             Web3.to_checksum_address(builder),
             index
         ).call()
 
-        reviews_raw = result[4]
+        reviews_raw = result
+        print(reviews_raw)
 
         # Format reviews
         reviews = [

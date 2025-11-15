@@ -181,7 +181,11 @@ document.addEventListener("DOMContentLoaded", async () => {
               <b>Project Hash:</b> ${proj.projectHash}<br>
 
               <b>Reviews:</b>
-              <pre>${JSON.stringify(detail.reviews, null, 2)}</pre>
+              <pre>
+                ${detail.reviews
+                    .map(r => `⭐ Rating: ${r.rating}\n🔗 Comment Hash: ${r.commentHash}`)
+                    .join("\n\n")}
+                </pre>
             `;
 
             if (!hasReviewed) {
