@@ -4,7 +4,7 @@ import json
 import hashlib
 from dotenv import load_dotenv
 from pathlib import Path
-from flask import Flask,jsonify,render_template,request
+from flask import Flask,jsonify,render_template,request,send_from_directory
 from flask_cors import CORS
 from web3 import Web3
 from deploy import depoly_contract
@@ -198,75 +198,19 @@ def hash_project():
 
     h = hashlib.sha256(content).hexdigest()
     print("Hash of the Project: ",h)
-    return jsonify({"hash": h})
-
-#-----------------------------------------------------------ADD PROJECT: CHECK-----------------------------------------------------------
-@app.route("/submit_project", methods=["POST"])
-def submit_project():
-    """Adds a project to the blockchain. Auto-verification is handled inside the smart contract."""
-    print("Submit Project Function Triggered")
-    data = request.get_json()
-    wallet = data.get("wallet")
-    client = data.get("client")
-    link = data.get("link")
-    name = data.get("name")
-    description = data.get("description")
-    languages = data.get("languages")
-
-    if not wallet or not link or not client:
-        return jsonify({"error": "wallet, client, and link required"}), 400
-
-
-    # Normalize GitHub link
-    if "github.com" in link and "raw.githubusercontent.com" not in link:
-        link = link.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
-
-    # Fetch content & hash
-    try:
-        r = requests.get(link, timeout=12)
-        if r.status_code != 200:
-            return jsonify({"error": "provided link not reachable"}), 400
-        content = r.content
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-    h = hashlib.sha256(content).hexdigest()
-
-    # Call addProject (auto-verifies inside contract)
-    try:
-        feature = contract.functions.addProject((
-        Web3.to_checksum_address(wallet),   # p.user
-        Web3.to_checksum_address(client),   # p.client
-        name,
-        description,
-        languages,
-        h,
-        link
-    ))
-
-
-        receipt = callfeature(feature)
-        print("Project added + verified automatically:", receipt)
-    except Exception as e:
-        return jsonify({"error": f"addProject failed: {str(e)}"}), 500
 
     # Track builder for dashboard use
     KNOWN_BUILDERS.add(wallet)
     save_builders()
 
-    try:
-        count = contract.functions.getProjectCount(Web3.to_checksum_address(wallet)).call()
-        index = count - 1
-    except Exception:
-        index = None
 
-    return jsonify({
-        "status": "added_and_verified",
-        "tx": receipt.transactionHash.hex(),
-        "index": index
-    })
 
-# -----------------------------------------------------------GET ALL PROJECTS(FREELANCER): WORKING-----------------------------------------------------------
+    return jsonify({"hash": h})
+
+#redirect to BUILDERS.JSON
+@app.route("/builders.json")
+def send_builders():
+    return send_from_directory(".", "builders.json")
 
 #-----------------------------------------------------------GET ALL PROJECTS(CLIENT): WORKING-----------------------------------------------------------
 @app.route("/get_projects_for_client/<wallet>")

@@ -195,6 +195,58 @@ export async function getAllProjectsFromChain(builder) {
 }
 
 
+async function loadBuildersJson() {
+    try {
+        const res = await fetch("/builders.json");   // NOW WORKS
+        if (!res.ok) throw new Error("builders.json not found");
+        const data = await res.json();
+        return data.builders || [];
+    } catch (err) {
+        console.error("Failed to load builders.json:", err);
+        return [];
+    }
+}
+
+
+export async function getProjectsForClient(wallet) {
+    if (!contract) await initContract();
+
+    wallet = web3.utils.toChecksumAddress(wallet);
+
+    let projects = [];
+    const builders = await loadBuildersJson();
+    // IMPORTANT: You MUST have a list of all known builders
+    for (const builder of builders) {
+        const builderChecksum = web3.utils.toChecksumAddress(builder);
+
+        const count = await contract.methods.getProjectCount(builderChecksum).call();
+
+        for (let i = 0; i < count; i++) {
+            const p = await contract.methods.getProject(builderChecksum, i).call();
+
+            // Solidity struct returns object-form:
+            // p.client, p.projectName, p.description, etc.
+
+            if (web3.utils.toChecksumAddress(p.client) === wallet) {
+                projects.push({
+                    freelancer: builderChecksum,
+                    projectName: p.projectName,
+                    description: p.description,
+                    languages: p.languages,
+                    projectHash: p.projectHash,
+                    link: p.link,
+                    verified: p.verified,
+                    timestamp: Number(p.timestamp),
+                    index: i
+                });
+            }
+        }
+    }
+
+    return projects;
+}
+
+
 window.connectWallet = connectWallet;
 window.verifyUserOnChain = verifyUserOnChain;
 window.addProjectOnChain = addProjectOnChain;
