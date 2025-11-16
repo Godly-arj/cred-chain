@@ -111,7 +111,7 @@ async function loadProfile() {
     const box = document.getElementById("profileDisplay");
     box.innerHTML = "<p>Loading…</p>";
 
-    // Load profile
+    // Load off-chain profile data
     const profile = await fetch(`http://localhost:5000/get_profile/${account}`);
     const pdata = await profile.json();
 
@@ -125,12 +125,11 @@ async function loadProfile() {
       <h3>📁 Projects</h3>
     `;
 
-    // Load blockchain projects
-    const res = await fetch(`http://localhost:5000/get_all_projects/${account}`);
-    const data = await res.json();
+    // Load blockchain projects directly from smart contract
+    const projects = await window.getAllProjectsFromChain(account);
 
-    if (data.projects?.length > 0) {
-        data.projects.forEach((p, i) => {
+    if (projects.length > 0) {
+        projects.forEach((p, i) => {
             html += `
               <div class="project-card">
                 <b>Project #${i + 1}</b><br>
@@ -149,7 +148,9 @@ async function loadProfile() {
 
     box.innerHTML = html;
 }
+
 document.getElementById("loadProfile").onclick = loadProfile;
+
 
 //----------------------------------------------------------SAVE PROFILE: WORKS----------------------------------------------------------
 document.getElementById("saveProfile").onclick = async () => {

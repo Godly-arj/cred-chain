@@ -267,41 +267,6 @@ def submit_project():
     })
 
 # -----------------------------------------------------------GET ALL PROJECTS(FREELANCER): WORKING-----------------------------------------------------------
-@app.route("/get_all_projects/<builder>", methods=["GET"])      #from freelancer side
-def get_all_projects(builder):
-    getsmartcontract()
-    try:
-        builder = Web3.to_checksum_address(builder)
-        count = contract.functions.getProjectCount(builder).call()
-        print(count)
-
-        count = contract.functions.getProjectCount(builder).call()
-        projects = []
-
-        for i in range(count):
-            p = contract.functions.getProject(builder, i).call()
-
-            # p MUST have 8 elements (0–7)
-            if len(p) != 8:
-                print("ERROR: Unexpected project struct length:", p)
-                continue
-
-            projects.append({
-                "client": p[0],
-                "projectName": p[1],
-                "description": p[2],
-                "languages": p[3],
-                "projectHash": p[4],
-                "link": p[5],
-                "verified": p[6],
-                "timestamp": p[7]
-            })
-
-        return jsonify({"builder": builder, "projects": projects})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 
 #-----------------------------------------------------------GET ALL PROJECTS(CLIENT): WORKING-----------------------------------------------------------
 @app.route("/get_projects_for_client/<wallet>")

@@ -136,13 +136,9 @@ export async function verifyUserOnChain() {
 
 
 //----------------------------------------------------------ADD PROJECT AND VERIFY----------------------------------------------------------
-// IMPORTANT: when your Solidity function takes a struct `ProjectInput calldata p`
-// web3 expects an object with the struct fields in correct name/order.
-// We'll pass a plain object — make sure Solidity struct keys match these names.
 export async function addProjectOnChain(client, name, desc, lang, projectHash, link) {
     if (!contract || !account) await connectWallet();
 
-    // Build struct object exactly as in Solidity: { user, client, projectName, description, languages, projectHash, link }
     const p = {
         user: account,
         client,
@@ -157,15 +153,52 @@ export async function addProjectOnChain(client, name, desc, lang, projectHash, l
     return sendTx(contract.methods.addProject(p));
 }
 
+//----------------------------------------------------------SUBMIT REVIEW----------------------------------------------------------
 export async function submitReviewOnChain(freelancer, index, rating, commentHash) {
     if (!contract || !account) await connectWallet();
     return sendTx(contract.methods.submitReview(freelancer, index, rating, commentHash));
 }
 
-// expose to window so inline HTML can call them
+//----------------------------------------------------------GET PROJECTS: FREELANCER----------------------------------------------------------
+export async function getAllProjectsFromChain(builder) {
+    if (!contract) await initContract();
+
+    try {
+        builder = web3.utils.toChecksumAddress(builder);
+
+        // Get total project count
+        const count = await contract.methods.getProjectCount(builder).call();
+        console.log("Project count:", count);
+
+        let projects = [];
+
+        for (let i = 0; i < count; i++) {
+            const p = await contract.methods.getProject(builder, i).call();
+
+
+            projects.push({
+                client: p[0],
+                projectName: p[1],
+                description: p[2],
+                languages: p[3],
+                projectHash: p[4],
+                link: p[5],
+                verified: p[6]
+            });
+        }
+
+        return projects; // return only array, not wrapped
+    } catch (err) {
+        console.error("getAllProjectsFromChain ERROR:", err);
+        return [];
+    }
+}
+
+
 window.connectWallet = connectWallet;
 window.verifyUserOnChain = verifyUserOnChain;
 window.addProjectOnChain = addProjectOnChain;
 window.submitReviewOnChain = submitReviewOnChain;
+window.getAllProjectsFromChain = getAllProjectsFromChain;
 
 console.log("[credchain] module loaded");

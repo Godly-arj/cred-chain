@@ -225,11 +225,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (isNaN(rating)) return alert("Enter valid rating");
 
-        const res = await fetch('http://localhost:5000/submit_review', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({freelancer, project_index: projectIndex, rating, comment_hash})
-        });
+        const tx = await window.submitReviewOnChain(freelancer,projectIndex,rating,comment_hash);
 
         const data = await res.json();
         if (data.error) alert("❌ " + data.error);
@@ -238,6 +234,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         loadClientProjects();
     };
 
+    //----------------------------------------------------------SEARCHING----------------------------------------------------------
     document.getElementById("searchBtn").onclick = async () => {
     const q = document.getElementById("searchInput").value.trim().toLowerCase();
 
@@ -284,6 +281,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       document.getElementById("searchResults").innerHTML = html;
   };
+
+  //----------------------------------------------------------LOAD PROJECTS----------------------------------------------------------
 
 
 });
